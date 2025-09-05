@@ -1,0 +1,104 @@
+esphome:
+  name: espelite
+
+# esp32:
+#   board: wemos_d1_uno32
+#   framework:
+#     type: esp-idf
+#     version: 5.3.2
+#     platform_version: 53.03.13
+
+esp8266:
+  board: esp12e
+
+# Enable logging
+logger:
+  level: INFO
+
+# Status LED that blinks steadily when everything is OK
+status_led:
+  pin:
+    number: GPIO2
+    inverted: true
+
+# Enable Home Assistant API
+api:
+  actions:
+    - action: set_temperature
+      variables:
+        value: float
+      then:
+        - lambda: |-
+            id(dummy_sensor).set_temperature(value);
+    - action: set_humidity
+      variables:
+        value: float
+      then:
+        - lambda: |-
+            id(dummy_sensor).set_humidity(value);
+    - action: update_dht
+      then:
+        - lambda: |-
+            id(esp_elite_dht).update();
+
+ota:
+  - platform: esphome
+    password: "your_ota_password_here"
+
+wifi:
+  ssid: "your_wifi_ssid"
+  password: "your_wifi_password"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "ESP Elite"
+    password: "your_hotspot_password"
+
+captive_portal:
+
+# External Components
+external_components:
+  - source: custom_components
+    components: [ dummy, dht ]
+
+# Dummy Component
+dummy:
+  id: dummy_sensor
+  pin: 
+    number: GPIO04
+    mode: INPUT_PULLUP
+  dht_component: esp_elite_dht
+  dht_update_interval: 500ms
+  temperature_sensor: esp_elite_temperature
+  humidity_sensor: esp_elite_humidity
+  temp_age_threshold: 60s  # Use internal values if updated within 1 minute
+
+# DHT Temperature and Humidity Sensor
+dht:
+  id: esp_elite_dht
+  pin:
+    number: GPIO13
+    mode: INPUT_PULLUP
+  model: SI7021
+  temperature:
+    id: esp_elite_temperature
+    name: "ESP Elite Temperature"
+    unit_of_measurement: "°C"
+    filters:
+      - filter_out: nan  # Filter out NAN values
+      - timeout: 25s  # Publish NAN if no valid reading for 5 seconds
+      - delta: 0.1  # Only publish if temperature changes by at least 0.1°C
+      - heartbeat: 10s  # Force a reading every 10 seconds regardless of delta
+  humidity:
+    id: esp_elite_humidity
+    name: "ESP Elite Humidity"
+    unit_of_measurement: "%"
+    filters:
+      - filter_out: nan  # Filter out NAN values
+      - timeout: 25s  # Publish NAN if no valid reading for 5 seconds
+      - delta: 0.1  # Only publish if humidity changes by at least 1%
+      - heartbeat: 10s  # Force a reading every 10 seconds regardless of delta
+# Sensor component (required by DHT)
+sensor:
+  
+

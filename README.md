@@ -22,7 +22,8 @@ The ESP Elite device intercepts communication between the SONOFF TH Elite and it
 3. **Data Flow**: 
    - Real sensor data flows to Home Assistant via ESPHome
    - Custom/manipulated values are sent to the SONOFF TH Elite via the dummy component
-   - The SONOFF device uses these custom values for its thermostat logic
+   - If Home Assistant values are older than `temp_age_threshold`, real sensor values are sent to SONOFF TH Elite instead
+   - The SONOFF device uses these values for its thermostat logic
 
 ## Hardware Configuration
 
@@ -147,7 +148,8 @@ SONOFF TH Elite ──→ ESP Elite (GPIO04) ←── Custom Values
 - **DHT Component**: Reads real SI7021 sensor data and publishes to Home Assistant
 - **Dummy Component**: Simulates SI7021 protocol to respond to SONOFF TH Elite requests
 - **API Integration**: Allows Home Assistant to inject custom temperature/humidity values
-- **Age-Based Logic**: Uses custom values if recent, falls back to real sensor data if stale
+- **Age-Based Logic**: Uses custom values if recent (within `temp_age_threshold`), falls back to real sensor data if stale
+- **Automatic Fallback**: If Home Assistant values are older than the configured threshold, real sensor readings are automatically sent to SONOFF TH Elite
 
 ## License
 

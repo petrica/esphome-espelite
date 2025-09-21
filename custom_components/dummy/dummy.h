@@ -18,8 +18,8 @@ class DummyComponent : public Component {
   void dump_config() override;
   
   void set_pin(GPIOPin *pin) { this->pin_ = pin; }
-  void set_temperature(float temperature);
-  void set_humidity(float humidity);
+  void set_temperature(float temperature, bool isFallback = false);
+  void set_humidity(float humidity, bool isFallback = false);
   void set_dht_component(dht::DHT *dht_component) { this->dht_component_ = dht_component; }
   void set_dht_update_interval(uint32_t interval_ms) { this->dht_update_interval_ms_ = interval_ms; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }

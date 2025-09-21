@@ -43,16 +43,16 @@ api:
 
 ota:
   - platform: esphome
-    password: "your_ota_password_here"
+    password: "C0rtina20@$"
 
 wifi:
-  ssid: "your_wifi_ssid"
-  password: "your_wifi_password"
+  ssid: "DIGIFIBRA-skAH"
+  password: "6SN2s32h54zC"
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "ESP Elite"
-    password: "your_hotspot_password"
+    password: "6iuhbpReAz0a"
 
 captive_portal:
 
@@ -86,18 +86,26 @@ dht:
     unit_of_measurement: "°C"
     filters:
       - filter_out: nan  # Filter out NAN values
-      - timeout: 25s  # Publish NAN if no valid reading for 5 seconds
+      - timeout: 25s  # Publish NAN if no valid reading for 25 seconds
       - delta: 0.1  # Only publish if temperature changes by at least 0.1°C
       - heartbeat: 10s  # Force a reading every 10 seconds regardless of delta
+    on_value:
+      then:
+        - lambda: |-
+            id(dummy_sensor).set_temperature(x, true);
   humidity:
     id: esp_elite_humidity
     name: "ESP Elite Humidity"
     unit_of_measurement: "%"
     filters:
       - filter_out: nan  # Filter out NAN values
-      - timeout: 25s  # Publish NAN if no valid reading for 5 seconds
+      - timeout: 25s  # Publish NAN if no valid reading for 25 seconds
       - delta: 0.1  # Only publish if humidity changes by at least 1%
       - heartbeat: 10s  # Force a reading every 10 seconds regardless of delta
+    on_value:
+      then:
+        - lambda: |-
+            id(dummy_sensor).set_humidity(x, true);
 # Sensor component (required by DHT)
 sensor:
   

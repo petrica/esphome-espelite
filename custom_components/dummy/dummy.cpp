@@ -59,7 +59,7 @@ bool DummyComponent::poll_for_request_() {
   bool high_detected = false;
   bool low_detected = false;
   
-  while ((millis() - poll_start) < 30) {
+  while ((millis() - poll_start) < 50) {
     bool current_state = this->pin_->digital_read();
     
     // Detect HIGH signal first
@@ -82,7 +82,7 @@ bool DummyComponent::poll_for_request_() {
       // Check if the LOW pulse is within acceptable range (400μs to 600μs)
       if (pulse_duration >= 400 && pulse_duration <= 600) {
         ESP_LOGD(TAG, "Valid pulse duration confirmed (%u μs), sending response", pulse_duration);
-        delayMicroseconds(40);  // 40μs delay before sending response
+        delayMicroseconds(38);  // 40μs delay before sending response
         this->send_si7021_response_();
         return true;  // Request handled successfully
       } else {
@@ -94,7 +94,7 @@ bool DummyComponent::poll_for_request_() {
     }
     
     // Small delay to prevent tight loop
-    delayMicroseconds(10);
+    // delayMicroseconds(10);
   }
   
   return false;  // No valid request detected
@@ -117,16 +117,56 @@ void DummyComponent::dump_config() {
   }
 }
 
-void DummyComponent::set_temperature(float temperature) {
+void DummyComponent::set_temperature(float temperature, bool isFallback) {
+  uint32_t current_time = millis();
+  uint32_t temperature_age = current_time - this->last_temperature_update_;
+  
+  // For fallback temperature, only update if:
+  // 1. Current temperature is NaN, OR
+  // 2. Current temperature is older than the threshold
+  if (isFallback) {
+    if (!std::isnan(this->current_temperature_) && 
+        temperature_age <= this->temp_age_threshold_ms_) {
+      ESP_LOGD(TAG, "Fallback temperature %.1f°C rejected - current temperature %.1f°C is still fresh (age: %u ms)", 
+               temperature, this->current_temperature_, temperature_age);
+      return;
+    }
+    // Do NOT update last_temperature_update_ for fallback temperature
+    ESP_LOGI(TAG, "Fallback temperature updated: %.1f°C (age: %u ms)", temperature, temperature_age);
+  } else {
+    // Normal temperature update - update timestamp
+    this->last_temperature_update_ = current_time;
+    ESP_LOGI(TAG, "Temperature updated: %.1f°C", temperature);
+  }
+  
+  // Always update the temperature value
   this->current_temperature_ = temperature;
-  this->last_temperature_update_ = millis();
-  ESP_LOGI(TAG, "Temperature updated: %.1f°C", temperature);
 }
 
-void DummyComponent::set_humidity(float humidity) {
+void DummyComponent::set_humidity(float humidity, bool isFallback) {
+  uint32_t current_time = millis();
+  uint32_t humidity_age = current_time - this->last_humidity_update_;
+  
+  // For fallback humidity, only update if:
+  // 1. Current humidity is NaN, OR
+  // 2. Current humidity is older than the threshold
+  if (isFallback) {
+    if (!std::isnan(this->current_humidity_) && 
+        humidity_age <= this->temp_age_threshold_ms_) {
+      ESP_LOGD(TAG, "Fallback humidity %.1f%% rejected - current humidity %.1f%% is still fresh (age: %u ms)", 
+               humidity, this->current_humidity_, humidity_age);
+      return;
+    }
+    // Do NOT update last_humidity_update_ for fallback humidity
+    ESP_LOGI(TAG, "Fallback humidity updated: %.1f%% (age: %u ms)", humidity, humidity_age);
+  } else {
+    // Normal humidity update - update timestamp
+    this->last_humidity_update_ = current_time;
+    ESP_LOGI(TAG, "Humidity updated: %.1f%%", humidity);
+  }
+  
+  // Always update the humidity value
   this->current_humidity_ = humidity;
-  this->last_humidity_update_ = millis();
-  ESP_LOGI(TAG, "Humidity updated: %.1f%%", humidity);
 }
 
 float DummyComponent::get_setup_priority() const {
@@ -137,25 +177,9 @@ void DummyComponent::send_si7021_response_() {
 
   InterruptLock lock;
 
-  uint32_t current_time = millis();
-  uint32_t temp_age = current_time - this->last_temperature_update_;
-  uint32_t humidity_age = current_time - this->last_humidity_update_;
-  
-  // Determine temperature value
-  float temp_value = NAN;
-  if (temp_age < this->temp_age_threshold_ms_ && !std::isnan(this->current_temperature_)) {  // Less than configured threshold
-    temp_value = this->current_temperature_;  // Use float value directly
-  } else if (this->temperature_sensor_ != nullptr && this->temperature_sensor_->has_state()) {
-    temp_value = this->temperature_sensor_->get_state();
-  }
-  
-  // Determine humidity value
-  float humidity_value = NAN;
-  if (humidity_age < this->temp_age_threshold_ms_ && !std::isnan(this->current_humidity_)) {  // Less than configured threshold
-    humidity_value = this->current_humidity_;  // Use float value directly
-  } else if (this->humidity_sensor_ != nullptr && this->humidity_sensor_->has_state()) {
-    humidity_value = this->humidity_sensor_->get_state();
-  }
+  // Always use current temperature and humidity values
+  float temp_value = this->current_temperature_;
+  float humidity_value = this->current_humidity_;
   
   // Check if we have valid data
   if (std::isnan(temp_value) || 
@@ -174,9 +198,9 @@ void DummyComponent::send_si7021_response_() {
   
   // SI7021 response: pull pin LOW for 80μs, then HIGH for 80μs
   this->pin_->digital_write(false);
-  delayMicroseconds(80);
+  delayMicroseconds(40);
   this->pin_->digital_write(true);
-  delayMicroseconds(80);
+  delayMicroseconds(76);
   
   // Create response data: [humidity_high, humidity_low, temp_high, temp_low, checksum]
   uint8_t response_data[5];
@@ -195,7 +219,7 @@ void DummyComponent::send_si7021_response_() {
     for (int bit = 7; bit >= 0; bit--) {
       // Start each bit with 50μs LOW
       this->pin_->digital_write(false);
-      delayMicroseconds(50);
+      delayMicroseconds(42);
       
       // Then pull HIGH for data duration
       this->pin_->digital_write(true);
@@ -203,21 +227,21 @@ void DummyComponent::send_si7021_response_() {
       // Hold high for bit duration according to protocol
       bool bit_value = (data_byte >> bit) & 0x01;
       if (bit_value) {
-        delayMicroseconds(70);  // 70μs for '1'
+        delayMicroseconds(74);  // 70μs for '1'
       } else {
-        delayMicroseconds(26);  // 26μs for '0'
+        delayMicroseconds(24);  // 26μs for '0'
       }
     }
   }
   
   // Pull line low for 50μs at the end of response
   this->pin_->digital_write(false);
-  delayMicroseconds(50);
+  delayMicroseconds(16);
   
   // Return pin to input mode with pull-up
   this->pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   
-  ESP_LOGD(TAG, "SI7021 response sent: %d°C, %d%% humidity", this->current_temperature_, this->current_humidity_);
+  ESP_LOGD(TAG, "SI7021 response sent: %.1f°C, %.1f%% humidity", temp_value, humidity_value);
 }
 
 }  // namespace dummy
